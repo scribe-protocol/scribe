@@ -2,8 +2,8 @@
 pragma solidity ^0.8.20;
 
 import {LibDiamondStorageContributions} from "../storage/LibDiamondStorageContributions.sol";
+import {LibDiamondStorageEco} from "../storage/LibDiamondStorageEco.sol";
 import {ContributionDefs} from "../storage/defs/ContributionDefs.sol";
-import {LibDiamond} from "../diamond/libs/LibDiamond.sol";
 import {LibCounter} from "../libs/LibCounter.sol";
 import {LibEco} from "../libs/LibEco.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -37,13 +37,17 @@ contract ContributionFacet {
         LibDiamondStorageContributions.DiamondStorageContributions
             storage ds = LibDiamondStorageContributions
                 .diamondStorageContributions();
+        LibDiamondStorageEco.DiamondStorageEco
+            storage dsEco = LibDiamondStorageEco.diamondStorageEco();
 
         require(
-            ds.token.transferFrom(msg.sender, address(this), _ecoAmount),
+            dsEco.token.transferFrom(msg.sender, address(this), _ecoAmount),
             "ContributionFacet.createContribution: Token transfer failed"
         );
 
-        uint256 _contributionId = LibCounter.current(ds.proposalContributionCounts[_proposalId]);
+        uint256 _contributionId = LibCounter.current(
+            ds.proposalContributionCounts[_proposalId]
+        );
 
         ds.contributions[_proposalId][_contributionId] = ContributionDefs
             .Contribution(
@@ -51,6 +55,7 @@ contract ContributionFacet {
                 _contributionId,
                 msg.sender,
                 _ecoAmount,
+                0,
                 _cid
             );
 
@@ -83,19 +88,10 @@ contract ContributionFacet {
         return ds.contributions[_proposalId][_contributionId];
     }
 
-    /**
-     * @dev Get the current address of the eco token used for contributions
-     * @return The address of the eco token
-     */
-    function getEcoAddress() external view returns (IERC20) {
-        return LibEco.getEcoAddress();
-    }
-
-    /**
-     * @dev Update the address of the eco token used for contributions
-     * @param _newEcoAddress The new address for the eco token
-     */
-    function changeEcoAddress(address _newEcoAddress) external {
-        LibEco.changeEcoAddress(_newEcoAddress);
+    function updateCharacterCount(string memory _proposalId, uint256 _contributionId, uint256 _characterCount) external {
+        LibDiamondStorageContributions.DiamondStorageContributions
+            storage ds = LibDiamondStorageContributions
+                .diamondStorageContributions();
+        ds.contributions[_proposalId][_contributionId].characterCount = _characterCount;
     }
 }

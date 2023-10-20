@@ -9,7 +9,7 @@ export async function addFacets(diamondAddress: string) {
     const contractOwner = accounts[0];
 
     // deploy new facets
-    const FacetNames: string[] = ['ProposalFacet', 'ContributionFacet', 'VotingFacet'];
+    const FacetNames: string[] = ['ProposalFacet', 'ContributionFacet', 'VotingFacet', 'NFTFacet', 'RewardFacet', 'EcoFacet'];
     const cut = [];
 
     for(const FacetName of FacetNames) {

@@ -8,10 +8,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 library LibDiamondStorageContributions {
     struct DiamondStorageContributions {
-        // eco erc20 token to be initialized with address at deployment
-        IERC20 token;
-        // address of the owner of the contract
-        address owner;
         mapping(string => mapping(uint256 => ContributionDefs.Contribution)) contributions; // bookId => contributionId => Contribution
         mapping(string => LibCounter.Counter) proposalContributionCounts; // proposalId => contributionCount
         mapping(string => uint256) proposalEcoAmounts; // proposalId => accumulatedEco

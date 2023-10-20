@@ -58,12 +58,12 @@ export async function deployDiamond() {
   let receipt
 
   // eco token address for diamond init
-  const tokenAddress = process.env.ECO_TOKEN_ADDRESS
-  if (tokenAddress === undefined) {
+  const ecoAddress = process.env.ECO_TOKEN_ADDRESS
+  if (ecoAddress === undefined) {
     throw Error('ECO_TOKEN_ADDRESS not set')
   }
   // call to init function
-  let functionCall = diamondInit.interface.encodeFunctionData('init', [tokenAddress as AddressLike])
+  let functionCall = diamondInit.interface.encodeFunctionData('init', [ecoAddress as AddressLike])
   tx = await diamondCut.diamondCut(cut, await diamondInit.getAddress(), functionCall)
   console.log('Diamond cut tx: ', tx.hash)
   receipt = await tx.wait()

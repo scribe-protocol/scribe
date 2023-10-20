@@ -2,22 +2,15 @@
 
 pragma solidity ^0.8.20;
 
-import {LibDiamond} from "../diamond/libs/LibDiamond.sol";
-import {LibCounter} from "../libs/LibCounter.sol";
 import {LibNFTFacet} from "../libs/LibNFTFacet.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IERC721Metadata} from "../interfaces/IERC721Metadata.sol";
 
 contract NFTFacet is IERC721Metadata {
-    // This implements ERC-165.
-    function supportsInterface(
-        bytes4 _interfaceId
-    ) external view override returns (bool) {
-        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        return ds.supportedInterfaces[_interfaceId];
-    }
-
-    function claimNFT(string memory proposalId) external {
-        LibNFTFacet.claimNFT(proposalId);
+    function claimNFT(
+        string memory proposalId,
+        string memory metadataCid
+    ) external {
+        LibNFTFacet.claimNFT(proposalId, metadataCid);
     }
 
     function balanceOf(

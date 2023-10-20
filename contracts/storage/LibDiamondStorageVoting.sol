@@ -12,6 +12,8 @@ library LibDiamondStorageVoting {
         mapping(string => mapping(uint256 => mapping(address => VoteDefs.Vote))) votes; // proposalId => contributionId => voterAddress => Vote
         // Mapping to store votes count
         mapping(string => mapping(uint256 => uint256)) votesCount; // proposalId => contributionId => number of votes
+        // Mapping to store if a proposal is finalized
+        mapping(string => bool) isFinalized; // proposalId => isFinalized
     }
 
     bytes32 constant DIAMOND_STORAGE_VOTING =

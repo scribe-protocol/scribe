@@ -39,6 +39,13 @@ library LibNFTFacet {
         bool approved
     );
 
+    event NFTClaimed(
+        address indexed claimer,
+        uint256 indexed tokenId,
+        string indexed proposalId,
+        string metadataCid
+    );
+
     function balanceOf(address _owner) internal view returns (uint256) {
         if (_owner == address(0)) {
             revert IERC721Errors.ERC721InvalidOwner(address(0));
@@ -64,28 +71,44 @@ library LibNFTFacet {
         return nftStorage().symbol;
     }
 
-    /**
-     * @dev See {IERC721Metadata-tokenURI}.
-     */
-    function tokenURI(
-        uint256 tokenId
-    ) internal view returns (string memory) {
-        _requireOwned(tokenId);
+    function _setTokenURI(uint256 tokenId, string memory metadataCid) internal {
+        nftStorage().tokenURIs[tokenId] = metadataCid;
+    }
 
-        string memory baseURI = _baseURI();
-        return
-            bytes(baseURI).length > 0
-                ? string.concat(baseURI, tokenId.toString())
-                : "";
+    function tokenURI(uint256 tokenId) internal view returns (string memory) {
+        _requireOwned(tokenId);
+        string memory _tokenURI = nftStorage().tokenURIs[tokenId];
+        string memory base = _baseURI();
+
+        // If there is no base URI, return the token URI.
+        if (bytes(base).length == 0) {
+            return _tokenURI;
+        }
+        // If both are set, concatenate the baseURI and tokenURI (via abi.encodePacked).
+        if (bytes(_tokenURI).length > 0) {
+            return string(abi.encodePacked(base, _tokenURI));
+        }
+        // If there is a baseURI but no tokenURI, concatenate the tokenID to the baseURI.
+        return string(abi.encodePacked(base, tokenId.toString()));
     }
 
     /**
-     * @dev Base URI for computing {tokenURI}. If set, the resulting URI for each
-     * token will be the concatenation of the `baseURI` and the `tokenId`. Empty
-     * by default, can be overridden in child contracts.
+     * @dev Returns the base URI used for all token URIs, facilitating on-chain metadata retrieval.
+     *
+     * This base URI specifically points to the IPFS gateway, which is used for decentralized storage.
+     * When concatenated with an individual token's unique identifier (usually a CID from IPFS),
+     * it generates the full URI where the token's metadata resides.
+     *
+     * Example:
+     * If a token has an identifier (CID) of "QmExampleCID", the resulting tokenURI will be:
+     * "https://ipfs.io/ipfs/QmExampleCID".
+     *
+     * This structure is particularly useful for NFTs stored on IPFS, allowing for a decentralized and
+     * persistent link to metadata. While the base is set to the IPFS gateway by default, it can be
+     * customized or overridden in derived contracts if necessary.
      */
     function _baseURI() internal pure returns (string memory) {
-        return "";
+        return "https://ipfs.io/ipfs/";
     }
 
     /**
@@ -98,9 +121,7 @@ library LibNFTFacet {
     /**
      * @dev See {IERC721-getApproved}.
      */
-    function getApproved(
-        uint256 tokenId
-    ) internal view returns (address) {
+    function getApproved(uint256 tokenId) internal view returns (address) {
         _requireOwned(tokenId);
 
         return _getApproved(tokenId);
@@ -109,10 +130,7 @@ library LibNFTFacet {
     /**
      * @dev See {IERC721-setApprovalForAll}.
      */
-    function setApprovalForAll(
-        address operator,
-        bool approved
-    ) internal {
+    function setApprovalForAll(address operator, bool approved) internal {
         _setApprovalForAll(_msgSender(), operator, approved);
     }
 
@@ -129,11 +147,7 @@ library LibNFTFacet {
     /**
      * @dev See {IERC721-transferFrom}.
      */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal {
+    function transferFrom(address from, address to, uint256 tokenId) internal {
         if (to == address(0)) {
             revert IERC721Errors.ERC721InvalidReceiver(address(0));
         }
@@ -188,9 +202,7 @@ library LibNFTFacet {
     /**
      * @dev Returns the approved address for `tokenId`. Returns 0 if `tokenId` is not minted.
      */
-    function _getApproved(
-        uint256 tokenId
-    ) internal view returns (address) {
+    function _getApproved(uint256 tokenId) internal view returns (address) {
         return nftStorage().tokenApprovals[tokenId];
     }
 
@@ -558,8 +570,28 @@ library LibNFTFacet {
         return msg.data;
     }
 
-    function claimNFT(string memory proposalId) internal {
-        LibDiamondStorageProposals.DiamondStorageProposals storage dsp = LibDiamondStorageProposals.diamondStorageProposals();
+    /**
+     * @dev Allows eligible contributors of a proposal to claim their corresponding NFT.
+     *
+     * The function performs several key steps:
+     * 1. It verifies that the caller has contributed to the specified proposal.
+     * 2. It checks if the caller has already claimed an NFT for this proposal.
+     * 3. It determines a new unique `tokenId` for the NFT.
+     * 4. It mints a new NFT with the determined `tokenId` and assigns ownership to the caller.
+     * 5. It sets the provided metadata as the token's URI, which is the NFT's metadata location on IPFS.
+     * 6. It increments the global `tokenIdCounter` to ensure future tokens have unique identifiers.
+     * 7. It marks the NFT as claimed for the given proposal and the caller to prevent multiple claims.
+     * 8. It emits an `NFTClaimed` event to log the action with relevant details.
+     *
+     * @param proposalId - Identifier of the proposal the caller has contributed to.
+     * @param metadataCid - CID or relative path to the metadata of the NFT, expected to be on IPFS or a similar decentralized storage solution.
+     */
+    function claimNFT(
+        string memory proposalId,
+        string memory metadataCid
+    ) internal {
+        LibDiamondStorageProposals.DiamondStorageProposals
+            storage dsp = LibDiamondStorageProposals.diamondStorageProposals();
         require(
             dsp.isContributor[proposalId][msg.sender],
             "You are not a contributor for this proposal."
@@ -570,14 +602,17 @@ library LibNFTFacet {
             "You have already claimed your NFT."
         );
 
-        
         uint256 tokenId = LibCounter.current(nftStorage().tokenIdCounter);
-       
+
         _safeMint(msg.sender, tokenId);
+
+        _setTokenURI(tokenId, metadataCid);
 
         LibCounter.increment(nftStorage().tokenIdCounter);
 
         nftStorage().hasClaimed[proposalId][msg.sender] = true;
+
+        emit NFTClaimed(msg.sender, tokenId, proposalId, metadataCid);
     }
 
     function nftStorage()

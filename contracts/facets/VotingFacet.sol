@@ -3,11 +3,13 @@
 pragma solidity ^0.8.20;
 
 import {VoteDefs} from "../storage/defs/VoteDefs.sol";
+import {ContributionDefs} from "../storage/defs/ContributionDefs.sol";
 import {LibDiamondStorageVoting} from "../storage/LibDiamondStorageVoting.sol";
 import {LibDiamondStorageProposals} from "../storage/LibDiamondStorageProposals.sol";
 import {LibDiamondStorageContributions} from "../storage/LibDiamondStorageContributions.sol";
-import { LibProposalFacet } from "../libs/LibProposalFacet.sol";
-import { LibVotingFacet } from "../libs/LibVotingFacet.sol";
+import {LibDiamondStorageReward} from "../storage/LibDiamondStorageReward.sol";
+import {LibProposalFacet} from "../libs/LibProposalFacet.sol";
+import {LibVotingFacet} from "../libs/LibVotingFacet.sol";
 
 contract VotingFacet {
     event VotingSessionStarted(
@@ -136,8 +138,15 @@ contract VotingFacet {
         LibDiamondStorageProposals.DiamondStorageProposals
             storage dsProposals = LibDiamondStorageProposals
                 .diamondStorageProposals();
+        LibDiamondStorageContributions.DiamondStorageContributions
+            storage dsContributions = LibDiamondStorageContributions
+                .diamondStorageContributions();
+        LibDiamondStorageReward.DiamondStorageReward
+            storage dsReward = LibDiamondStorageReward.diamondStorageReward();
 
-        VoteDefs.VotingSession storage votingSession = ds.votingSessions[_proposalId][_contributionId];
+        VoteDefs.VotingSession storage votingSession = ds.votingSessions[
+            _proposalId
+        ][_contributionId];
 
         // Ensure the proposal exists
         require(
@@ -146,8 +155,9 @@ contract VotingFacet {
         );
 
         // Check if everyone has voted
-        uint256 totalContributors = LibProposalFacet
-            .getContributorCount(_proposalId);
+        uint256 totalContributors = LibProposalFacet.getContributorCount(
+            _proposalId
+        );
 
         // Get total votes cast
         uint256 totalVotesCast = LibVotingFacet.getVotesCount(
@@ -168,19 +178,42 @@ contract VotingFacet {
             totalContributors
         );
 
-
         if (
             votingSession.sessionType == VoteDefs.SessionType.CONTRIBUTION &&
             result == VoteDefs.VoteResult.ACCEPTED
         ) {
-            //TODO: Handle accepted contribution voting session
+            ds.votingSessions[_proposalId][_contributionId].result = VoteDefs
+                .VoteResult
+                .ACCEPTED;
+
+            // pseudo-code: get the contribution based on _proposalId and _contributionId
+            ContributionDefs.Contribution storage contribution = dsContributions
+                .contributions[_proposalId][_contributionId];
+
+            dsProposals.isContributor[_proposalId][
+                contribution.contributor
+            ] = true;
+
+            dsProposals.contributorList[_proposalId].push(
+                contribution.contributor
+            );
+
+            dsReward.contributorCharacterCount[_proposalId][
+                contribution.contributor
+            ] += contribution.characterCount;
+
+            dsReward.totalCharactersForProposal[_proposalId] += contribution
+                .characterCount;
         }
 
         if (
             votingSession.sessionType == VoteDefs.SessionType.FINALIZATION &&
             result == VoteDefs.VoteResult.ACCEPTED
         ) {
-            //TODO: Handle accepted finalization voting session
+            ds.votingSessions[_proposalId][_contributionId].result = VoteDefs
+                .VoteResult
+                .ACCEPTED;
+            ds.isFinalized[_proposalId] = true;
         }
 
         emit VotingSessionEnded(
@@ -192,5 +225,13 @@ contract VotingFacet {
             votingSession.abstainVotes,
             result
         );
+    }
+
+    function isProposalFinalized(
+        string memory _proposalId
+    ) external view returns (bool) {
+        LibDiamondStorageVoting.DiamondStorageVoting
+            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
+        return ds.isFinalized[_proposalId];
     }
 }

@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockECOToken is ERC20 {
-    constructor(uint256 initialSupply) ERC20('Mock ECO Token', 'mECO') {
+    constructor(uint256 initialSupply) ERC20("Mock ECO Token", "mECO") {
         _mint(msg.sender, initialSupply);
     }
 }

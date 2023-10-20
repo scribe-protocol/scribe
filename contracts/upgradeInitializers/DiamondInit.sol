@@ -13,9 +13,10 @@ import {IDiamondLoupe} from "../diamond/interfaces/IDiamondLoupe.sol";
 import {IDiamondCut} from "../diamond/interfaces/IDiamondCut.sol";
 import {IERC173} from "../diamond/interfaces/IERC173.sol";
 import {IERC165} from "../diamond/interfaces/IERC165.sol";
-import {LibDiamondStorageContributions} from "../storage/LibDiamondStorageContributions.sol";
+import {LibDiamondStorageEco} from "../storage/LibDiamondStorageEco.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import {IERC721} from "../interfaces/IERC721.sol";
+import {IERC721Metadata} from "../interfaces/IERC721Metadata.sol";
 
 // It is expected that this contract is customized if you want to deploy your diamond
 // with data from a deployment script. Use the init function to initialize state variables
@@ -24,13 +25,14 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 contract DiamondInit {
     // You can add parameters to this function in order to pass in
     // data to set your own state variables
-    function init(address _tokenAddress) external {
+    function init(address _ecoAddress) external {
         // adding ERC165 data
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
         ds.supportedInterfaces[type(IDiamondCut).interfaceId] = true;
         ds.supportedInterfaces[type(IDiamondLoupe).interfaceId] = true;
         ds.supportedInterfaces[type(IERC173).interfaceId] = true;
+        ds.supportedInterfaces[type(IERC721).interfaceId] = true;
         ds.supportedInterfaces[type(IERC721Metadata).interfaceId] = true;
 
         // add your own state variables
@@ -41,10 +43,9 @@ contract DiamondInit {
         // More info here: https://eips.ethereum.org/EIPS/eip-2535#diamond-interface
 
         // Initialize token address and owner in contribution storage
-        LibDiamondStorageContributions.DiamondStorageContributions
-            storage dsc = LibDiamondStorageContributions
-                .diamondStorageContributions();
-        dsc.token = IERC20(_tokenAddress);
-        dsc.owner = msg.sender;
+        LibDiamondStorageEco.DiamondStorageEco
+            storage dsEco = LibDiamondStorageEco
+                .diamondStorageEco();
+        dsEco.token = IERC20(_ecoAddress);
     }
 }
