@@ -10,7 +10,6 @@ library LibDiamondStorageContributions {
     struct DiamondStorageContributions {
         mapping(string => mapping(uint256 => ContributionDefs.Contribution)) contributions; // bookId => contributionId => Contribution
         mapping(string => LibCounter.Counter) proposalContributionCounts; // proposalId => contributionCount
-        mapping(string => uint256) proposalEcoAmounts; // proposalId => accumulatedEco
     }
 
     bytes32 constant DIAMOND_STORAGE_CONTRIBUTIONS =

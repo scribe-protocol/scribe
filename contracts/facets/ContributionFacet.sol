@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {LibDiamondStorageContributions} from "../storage/LibDiamondStorageContributions.sol";
+import {LibDiamondStorageProposals} from "../storage/LibDiamondStorageProposals.sol";
 import {LibDiamondStorageEco} from "../storage/LibDiamondStorageEco.sol";
 import {ContributionDefs} from "../storage/defs/ContributionDefs.sol";
 import {LibCounter} from "../libs/LibCounter.sol";
@@ -39,6 +40,9 @@ contract ContributionFacet {
                 .diamondStorageContributions();
         LibDiamondStorageEco.DiamondStorageEco
             storage dsEco = LibDiamondStorageEco.diamondStorageEco();
+        LibDiamondStorageProposals.DiamondStorageProposals
+            storage dsProposals = LibDiamondStorageProposals
+                .diamondStorageProposals();
 
         require(
             dsEco.token.transferFrom(msg.sender, address(this), _ecoAmount),
@@ -69,7 +73,7 @@ contract ContributionFacet {
 
         LibCounter.increment(ds.proposalContributionCounts[_proposalId]);
 
-        ds.proposalEcoAmounts[_proposalId] += _ecoAmount;
+        dsProposals.proposalEcoAmounts[_proposalId] += _ecoAmount;
     }
 
     /**

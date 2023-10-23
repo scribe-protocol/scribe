@@ -4,9 +4,9 @@ pragma solidity ^0.8.20;
 
 library LibDiamondStorageReward {
     struct DiamondStorageReward {
-        mapping(string => uint256) pendingRewards;
-        mapping(string => mapping(address => bool)) hasBeenSentReward;
-        mapping(string => uint256) totalCharactersForProposal;
+        mapping(string => mapping(address => uint256)) pendingRewards; // proposalId => contributor => pendingReward
+        mapping(string => mapping(address => bool)) hasBeenSentReward; // proposalId => contributor => hasBeenSentReward
+        mapping(string => uint256) totalCharactersForProposal; // proposalId => totalCharactersForProposal
         mapping(string => mapping(address => uint256)) contributorCharacterCount; // proposalId => contributor => characterCount
     }
 

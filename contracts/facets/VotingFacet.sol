@@ -186,7 +186,7 @@ contract VotingFacet {
                 .VoteResult
                 .ACCEPTED;
 
-            // pseudo-code: get the contribution based on _proposalId and _contributionId
+            
             ContributionDefs.Contribution storage contribution = dsContributions
                 .contributions[_proposalId][_contributionId];
 

@@ -12,6 +12,8 @@ library LibDiamondStorageProposals {
         mapping(string => mapping(address => bool)) isContributor; // proposalId => (contributorAddress => hasContributed)
         // Mapping to store a list of contributors for a proposal
         mapping(string => address[]) contributorList; // proposalId => array of contributor addresses
+        // Mapping to store the accumulated eco for a proposal
+        mapping(string => uint256) proposalEcoAmounts; // proposalId => accumulatedEco
     }
 
     bytes32 constant DIAMOND_STORAGE_PROPOSALS =
