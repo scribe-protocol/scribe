@@ -2,12 +2,11 @@
 
 pragma solidity ^0.8.20;
 
-import {LibDiamondStorageNFT} from "../storage/LibDiamondStorageNFT.sol";
-import {LibDiamondStorageProposals} from "../storage/LibDiamondStorageProposals.sol";
 import {LibCounter} from "./LibCounter.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {LibStorageRetrieval} from "./LibStorageRetrieval.sol";
 
 library LibNFTFacet {
     using Strings for uint256;
@@ -50,7 +49,7 @@ library LibNFTFacet {
         if (_owner == address(0)) {
             revert IERC721Errors.ERC721InvalidOwner(address(0));
         }
-        return nftStorage().balances[_owner];
+        return LibStorageRetrieval.nftStorage().balances[_owner];
     }
 
     function ownerOf(uint256 _tokenId) internal view returns (address) {
@@ -61,23 +60,25 @@ library LibNFTFacet {
      * @dev See {IERC721Metadata-name}.
      */
     function name() internal view returns (string memory) {
-        return nftStorage().name;
+        return LibStorageRetrieval.nftStorage().name;
     }
 
     /**
      * @dev See {IERC721Metadata-symbol}.
      */
     function symbol() internal view returns (string memory) {
-        return nftStorage().symbol;
+        return LibStorageRetrieval.nftStorage().symbol;
     }
 
     function _setTokenURI(uint256 tokenId, string memory metadataCid) internal {
-        nftStorage().tokenURIs[tokenId] = metadataCid;
+        LibStorageRetrieval.nftStorage().tokenURIs[tokenId] = metadataCid;
     }
 
     function tokenURI(uint256 tokenId) internal view returns (string memory) {
         _requireOwned(tokenId);
-        string memory _tokenURI = nftStorage().tokenURIs[tokenId];
+        string memory _tokenURI = LibStorageRetrieval.nftStorage().tokenURIs[
+            tokenId
+        ];
         string memory base = _baseURI();
 
         // If there is no base URI, return the token URI.
@@ -141,7 +142,8 @@ library LibNFTFacet {
         address owner,
         address operator
     ) internal view returns (bool) {
-        return nftStorage().operatorApprovals[owner][operator];
+        return
+            LibStorageRetrieval.nftStorage().operatorApprovals[owner][operator];
     }
 
     /**
@@ -196,14 +198,14 @@ library LibNFTFacet {
      * `balanceOf(a)` must be equal to the number of tokens such that `_ownerOf(tokenId)` is `a`.
      */
     function _ownerOf(uint256 tokenId) internal view returns (address) {
-        return LibDiamondStorageNFT.diamondStorageNFT().owners[tokenId];
+        return LibStorageRetrieval.nftStorage().owners[tokenId];
     }
 
     /**
      * @dev Returns the approved address for `tokenId`. Returns 0 if `tokenId` is not minted.
      */
     function _getApproved(uint256 tokenId) internal view returns (address) {
-        return nftStorage().tokenApprovals[tokenId];
+        return LibStorageRetrieval.nftStorage().tokenApprovals[tokenId];
     }
 
     /**
@@ -262,7 +264,7 @@ library LibNFTFacet {
      */
     function _increaseBalance(address account, uint128 value) internal {
         unchecked {
-            nftStorage().balances[account] += value;
+            LibStorageRetrieval.nftStorage().balances[account] += value;
         }
     }
 
@@ -295,17 +297,17 @@ library LibNFTFacet {
             _approve(address(0), tokenId, address(0), false);
 
             unchecked {
-                nftStorage().balances[from] -= 1;
+                LibStorageRetrieval.nftStorage().balances[from] -= 1;
             }
         }
 
         if (to != address(0)) {
             unchecked {
-                nftStorage().balances[to] += 1;
+                LibStorageRetrieval.nftStorage().balances[to] += 1;
             }
         }
 
-        nftStorage().owners[tokenId] = to;
+        LibStorageRetrieval.nftStorage().owners[tokenId] = to;
 
         emit Transfer(from, to, tokenId);
 
@@ -485,7 +487,7 @@ library LibNFTFacet {
             }
         }
 
-        nftStorage().tokenApprovals[tokenId] = to;
+        LibStorageRetrieval.nftStorage().tokenApprovals[tokenId] = to;
     }
 
     /**
@@ -504,7 +506,9 @@ library LibNFTFacet {
         if (operator == address(0)) {
             revert IERC721Errors.ERC721InvalidOperator(operator);
         }
-        nftStorage().operatorApprovals[owner][operator] = approved;
+        LibStorageRetrieval.nftStorage().operatorApprovals[owner][
+            operator
+        ] = approved;
         emit ApprovalForAll(owner, operator, approved);
     }
 
@@ -590,36 +594,34 @@ library LibNFTFacet {
         string memory proposalId,
         string memory metadataCid
     ) internal {
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage dsp = LibDiamondStorageProposals.diamondStorageProposals();
         require(
-            dsp.isContributor[proposalId][msg.sender],
+            LibStorageRetrieval.proposalStorage().isContributor[proposalId][
+                msg.sender
+            ],
             "You are not a contributor for this proposal."
         );
 
         require(
-            !nftStorage().hasClaimed[proposalId][msg.sender],
+            !LibStorageRetrieval.nftStorage().hasClaimed[proposalId][
+                msg.sender
+            ],
             "You have already claimed your NFT."
         );
 
-        uint256 tokenId = LibCounter.current(nftStorage().tokenIdCounter);
+        uint256 tokenId = LibCounter.current(
+            LibStorageRetrieval.nftStorage().tokenIdCounter
+        );
 
         _safeMint(msg.sender, tokenId);
 
         _setTokenURI(tokenId, metadataCid);
 
-        LibCounter.increment(nftStorage().tokenIdCounter);
+        LibCounter.increment(LibStorageRetrieval.nftStorage().tokenIdCounter);
 
-        nftStorage().hasClaimed[proposalId][msg.sender] = true;
+        LibStorageRetrieval.nftStorage().hasClaimed[proposalId][
+            msg.sender
+        ] = true;
 
         emit NFTClaimed(msg.sender, tokenId, proposalId, metadataCid);
-    }
-
-    function nftStorage()
-        private
-        pure
-        returns (LibDiamondStorageNFT.DiamondStorageNFT storage)
-    {
-        return LibDiamondStorageNFT.diamondStorageNFT();
     }
 }

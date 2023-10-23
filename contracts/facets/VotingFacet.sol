@@ -3,12 +3,6 @@
 pragma solidity ^0.8.20;
 
 import {VoteDefs} from "../storage/defs/VoteDefs.sol";
-import {ContributionDefs} from "../storage/defs/ContributionDefs.sol";
-import {LibDiamondStorageVoting} from "../storage/LibDiamondStorageVoting.sol";
-import {LibDiamondStorageProposals} from "../storage/LibDiamondStorageProposals.sol";
-import {LibDiamondStorageContributions} from "../storage/LibDiamondStorageContributions.sol";
-import {LibDiamondStorageReward} from "../storage/LibDiamondStorageReward.sol";
-import {LibProposalFacet} from "../libs/LibProposalFacet.sol";
 import {LibVotingFacet} from "../libs/LibVotingFacet.sol";
 
 /**

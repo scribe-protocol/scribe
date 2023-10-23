@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {LibDiamondStorageProposals} from "../storage/LibDiamondStorageProposals.sol";
 import {ProposalDefs} from "../storage/defs/ProposalDefs.sol";
 import {LibDiamond} from "../diamond/libs/LibDiamond.sol";
+import {LibStorageRetrieval} from "./LibStorageRetrieval.sol";
 
 library LibProposalFacet {
-
     // Event emitted when a new proposal is created.
     event NewProposal(
         string indexed proposalId,
@@ -26,28 +25,29 @@ library LibProposalFacet {
         string memory _proposalId,
         string memory _cid
     ) internal {
-        // Access the diamond storage for proposals
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage ds = LibDiamondStorageProposals.diamondStorageProposals();
-
         // Check if the proposal already exists
         require(
-            ds.proposals[_proposalId].proposer == address(0),
+            LibStorageRetrieval
+                .proposalStorage()
+                .proposals[_proposalId]
+                .proposer == address(0),
             "Proposal already exists"
         );
 
         // Create and store the new proposal
-        ds.proposals[_proposalId] = ProposalDefs.Proposal(
-            _proposalId,
-            msg.sender,
-            _cid
-        );
+        LibStorageRetrieval.proposalStorage().proposals[
+            _proposalId
+        ] = ProposalDefs.Proposal(_proposalId, msg.sender, _cid);
 
         // Mark the sender as a contributor to this proposal
-        ds.isContributor[_proposalId][msg.sender] = true;
+        LibStorageRetrieval.proposalStorage().isContributor[_proposalId][
+                msg.sender
+            ] = true;
 
         // Add the sender to the list of contributors for this proposal
-        ds.contributorList[_proposalId].push(msg.sender);
+        LibStorageRetrieval.proposalStorage().contributorList[_proposalId].push(
+                msg.sender
+            );
 
         // Emit an event to signal the creation of the new proposal
         emit NewProposal(_proposalId, msg.sender, _cid);
@@ -63,12 +63,8 @@ library LibProposalFacet {
     function getProposal(
         string memory _proposalId
     ) internal view returns (ProposalDefs.Proposal memory) {
-        // Access the diamond storage for proposals
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage ds = LibDiamondStorageProposals.diamondStorageProposals();
-        
         // Return the proposal details
-        return ds.proposals[_proposalId];
+        return LibStorageRetrieval.proposalStorage().proposals[_proposalId];
     }
 
     /**
@@ -79,14 +75,10 @@ library LibProposalFacet {
      * @param _cid - The new Content Identifier.
      */
     function updateCid(string memory _proposalId, string memory _cid) internal {
-        // Access the diamond storage for proposals
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage ds = LibDiamondStorageProposals.diamondStorageProposals();
-
         // Ensure only the contract owner can update the CID
         LibDiamond.enforceIsContractOwner();
 
         // Update the CID in storage
-        ds.proposals[_proposalId].cid = _cid;
+        LibStorageRetrieval.proposalStorage().proposals[_proposalId].cid = _cid;
     }
 }

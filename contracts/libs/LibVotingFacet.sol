@@ -2,12 +2,10 @@
 
 pragma solidity ^0.8.20;
 
-import {LibDiamondStorageVoting} from "../storage/LibDiamondStorageVoting.sol";
-import {LibDiamondStorageProposals} from "../storage/LibDiamondStorageProposals.sol";
-import {LibDiamondStorageContributions} from "../storage/LibDiamondStorageContributions.sol";
-import {LibDiamondStorageReward} from "../storage/LibDiamondStorageReward.sol";
 import {VoteDefs} from "../storage/defs/VoteDefs.sol";
 import {ContributionDefs} from "../storage/defs/ContributionDefs.sol";
+import {LibDiamond} from "../diamond/libs/LibDiamond.sol";
+import {LibStorageRetrieval} from "./LibStorageRetrieval.sol";
 
 library LibVotingFacet {
     /**
@@ -61,28 +59,31 @@ library LibVotingFacet {
     );
 
     /**
-     * @dev A modifier to restrict functions to be callable
-     * only by contributors of a specific proposal.
+     * @dev Modifier to ensure that the function caller is either a contributor of a specific proposal or the contract owner.
+     * @param _proposalId The ID of the proposal to check against.
      *
-     * @param _proposalId The ID of the proposal for which
-     * to check the caller's contributor status.
+     * This modifier first retrieves the diamond storage and diamond storage for proposals. It then checks if the caller
+     * is a contributor for the given proposal or if the caller is the contract owner. If neither of these conditions is met,
+     * it reverts the transaction with a message indicating that the caller does not have the required permissions.
      */
-    modifier onlyContributor(string memory _proposalId) {
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage dsProposals = LibDiamondStorageProposals
-                .diamondStorageProposals();
-
-        // Ensure that the caller is a contributor for the specified proposal.
+    modifier onlyContributorOrOwner(string memory _proposalId) {
+        // Check if the caller is a contributor to the proposal or is the contract owner.
         require(
-            dsProposals.isContributor[_proposalId][msg.sender],
-            "Caller is not a contributor"
+            LibStorageRetrieval.proposalStorage().isContributor[_proposalId][
+                msg.sender
+            ] ||
+                msg.sender ==
+                LibStorageRetrieval.diamondStorage().contractOwner,
+            "Caller is neither contributor nor owner"
         );
+
+        // Continue with the execution of the function this modifier is applied to.
         _;
     }
 
     /**
      * @notice Initiates a new voting session for a given proposal.
-     * @dev This function can only be called by a contributor to the proposal.
+     * @dev This function can only be called by the contract owner or a contributor to the proposal.
      *
      * @param _proposalId Unique identifier for the proposal.
      * @param _contributionId Identifier for the contribution associated with the proposal.
@@ -92,15 +93,11 @@ library LibVotingFacet {
         string memory _proposalId,
         uint256 _contributionId,
         VoteDefs.SessionType _sessionType
-    ) internal onlyContributor(_proposalId) {
-        // Access the diamond storage specific to voting.
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-
+    ) internal onlyContributorOrOwner(_proposalId) {
         // Reference to the current voting session.
-        VoteDefs.VotingSession storage votingSession = ds.votingSessions[
-            _proposalId
-        ][_contributionId];
+        VoteDefs.VotingSession storage votingSession = LibStorageRetrieval
+            .votingStorage()
+            .votingSessions[_proposalId][_contributionId];
 
         // Ensure that the voting session hasn't already started.
         require(
@@ -137,7 +134,7 @@ library LibVotingFacet {
 
     /**
      * @notice Allows a contributor to cast their vote for a given contribution.
-     * @dev This function can only be called by a contributor of the proposal and within the active voting session.
+     * @dev This function can only be called by the contract owner or a contributor of the proposal and within the active voting session.
      *
      * @param _proposalId Unique identifier for the proposal being voted on.
      * @param _contributionId Identifier for the contribution associated with the proposal.
@@ -147,20 +144,16 @@ library LibVotingFacet {
         string memory _proposalId,
         uint256 _contributionId,
         VoteDefs.VoteType _voteType
-    ) internal onlyContributor(_proposalId) {
-        // Access the diamond storage specific to voting.
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-
+    ) internal onlyContributorOrOwner(_proposalId) {
         // Reference to the current voting session for the given proposal and contribution.
-        VoteDefs.VotingSession storage votingSession = ds.votingSessions[
-            _proposalId
-        ][_contributionId];
+        VoteDefs.VotingSession storage votingSession = LibStorageRetrieval
+            .votingStorage()
+            .votingSessions[_proposalId][_contributionId];
 
         // Reference to the vote of the current contributor for the given proposal and contribution.
-        VoteDefs.Vote storage vote = ds.votes[_proposalId][_contributionId][
-            msg.sender
-        ];
+        VoteDefs.Vote storage vote = LibStorageRetrieval.votingStorage().votes[
+            _proposalId
+        ][_contributionId][msg.sender];
 
         // Ensure the voting session is currently active.
         require(
@@ -185,7 +178,9 @@ library LibVotingFacet {
         else votingSession.abstainVotes++;
 
         // Increment the total number of votes for this proposal and contribution.
-        ds.votesCount[_proposalId][_contributionId]++;
+        LibStorageRetrieval.votingStorage().votesCount[_proposalId][
+            _contributionId
+        ]++;
 
         // Emit an event indicating the vote has been cast.
         emit VoteCast(_proposalId, _contributionId, msg.sender, _voteType);
@@ -193,7 +188,7 @@ library LibVotingFacet {
 
     /**
      * @notice Ends the voting session for a given proposal and contribution.
-     * @dev This function can only be called by a contributor of the proposal. It will determine the vote result
+     * @dev This function can only be called by the contract owner or a proposal contributor. It will determine the vote result
      * and apply the respective consequences based on the result.
      *
      * @param _proposalId Unique identifier for the proposal being voted on.
@@ -202,37 +197,25 @@ library LibVotingFacet {
     function endVotingSession(
         string memory _proposalId,
         uint256 _contributionId
-    ) internal onlyContributor(_proposalId) {
-        // Access the diamond storage specific to different parts of the system.
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage dsProposals = LibDiamondStorageProposals
-                .diamondStorageProposals();
-        LibDiamondStorageContributions.DiamondStorageContributions
-            storage dsContributions = LibDiamondStorageContributions
-                .diamondStorageContributions();
-        LibDiamondStorageReward.DiamondStorageReward
-            storage dsReward = LibDiamondStorageReward.diamondStorageReward();
-
+    ) internal onlyContributorOrOwner(_proposalId) {
         // Reference to the current voting session for the given proposal and contribution.
-        VoteDefs.VotingSession storage votingSession = ds.votingSessions[
+        VoteDefs.VotingSession storage votingSession = LibStorageRetrieval.votingStorage().votingSessions[
             _proposalId
         ][_contributionId];
 
         // Ensure that the proposal for which the session is ending exists.
         require(
-            dsProposals.proposals[_proposalId].proposer != address(0),
+            LibStorageRetrieval.proposalStorage().proposals[_proposalId].proposer != address(0),
             "VotingFacet.endVotingSession: proposal does not exist"
         );
 
         // Get total contributors for the proposal.
-        uint256 totalContributors = dsProposals
+        uint256 totalContributors = LibStorageRetrieval.proposalStorage()
             .contributorList[_proposalId]
             .length;
 
         // Get total votes cast for this session.
-        uint256 totalVotesCast = ds.votesCount[_proposalId][_contributionId];
+        uint256 totalVotesCast = LibStorageRetrieval.votingStorage().votesCount[_proposalId][_contributionId];
 
         // Ensure that either the voting session time has expired or all contributors have voted.
         require(
@@ -254,25 +237,25 @@ library LibVotingFacet {
             result == VoteDefs.VoteResult.ACCEPTED
         ) {
             // Set the vote result to ACCEPTED.
-            ds.votingSessions[_proposalId][_contributionId].result = VoteDefs
+            LibStorageRetrieval.votingStorage().votingSessions[_proposalId][_contributionId].result = VoteDefs
                 .VoteResult
                 .ACCEPTED;
 
             // Add the contributor to the list of contributors for the proposal.
-            ContributionDefs.Contribution storage contribution = dsContributions
+            ContributionDefs.Contribution storage contribution = LibStorageRetrieval.contributionStorage()
                 .contributions[_proposalId][_contributionId];
-            dsProposals.isContributor[_proposalId][
+            LibStorageRetrieval.proposalStorage().isContributor[_proposalId][
                 contribution.contributor
             ] = true;
-            dsProposals.contributorList[_proposalId].push(
+            LibStorageRetrieval.proposalStorage().contributorList[_proposalId].push(
                 contribution.contributor
             );
 
             // Update the reward counters for this contributor and proposal.
-            dsReward.contributorCharacterCount[_proposalId][
+            LibStorageRetrieval.rewardStorage().contributorCharacterCount[_proposalId][
                 contribution.contributor
             ] += contribution.characterCount;
-            dsReward.totalCharactersForProposal[_proposalId] += contribution
+            LibStorageRetrieval.rewardStorage().totalCharactersForProposal[_proposalId] += contribution
                 .characterCount;
         }
 
@@ -281,10 +264,10 @@ library LibVotingFacet {
             votingSession.sessionType == VoteDefs.SessionType.FINALIZATION &&
             result == VoteDefs.VoteResult.ACCEPTED
         ) {
-            ds.votingSessions[_proposalId][_contributionId].result = VoteDefs
+            LibStorageRetrieval.votingStorage().votingSessions[_proposalId][_contributionId].result = VoteDefs
                 .VoteResult
                 .ACCEPTED;
-            ds.isFinalized[_proposalId] = true;
+            LibStorageRetrieval.votingStorage().isFinalized[_proposalId] = true;
         }
 
         // Emit an event to signal the end of the voting session with its outcome.
@@ -309,12 +292,8 @@ library LibVotingFacet {
     function isProposalFinalized(
         string memory _proposalId
     ) internal view returns (bool) {
-        // Access the diamond storage specific to the voting facet.
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-
         // Return the finalized state of the given proposal.
-        return ds.isFinalized[_proposalId];
+        return LibStorageRetrieval.votingStorage().isFinalized[_proposalId];
     }
 
     /**
