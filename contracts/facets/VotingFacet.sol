@@ -11,227 +11,74 @@ import {LibDiamondStorageReward} from "../storage/LibDiamondStorageReward.sol";
 import {LibProposalFacet} from "../libs/LibProposalFacet.sol";
 import {LibVotingFacet} from "../libs/LibVotingFacet.sol";
 
+/**
+ * @title Voting Facet Contract
+ * @notice This contract facilitates voting operations on contributions.
+ * @dev This contract delegates most of its logic 
+ * to the `LibVotingFacet` library. Each function corresponds to an operation 
+ * within the voting process such as starting a session, casting votes, or ending a session.
+ */
 contract VotingFacet {
-    event VotingSessionStarted(
-        string indexed proposalId,
-        uint256 contributionId,
-        uint256 indexed startTime,
-        uint256 indexed endTime,
-        VoteDefs.SessionType sessionType
-    );
 
-    event VoteCast(
-        string proposalId,
-        uint256 indexed contributionId,
-        address indexed voter,
-        VoteDefs.VoteType indexed voteType
-    );
-
-    event VotingSessionEnded(
-        string indexed proposalId,
-        uint256 contributionId,
-        VoteDefs.SessionType indexed sessionType,
-        uint256 yesVotes,
-        uint256 noVotes,
-        uint256 abstainVotes,
-        VoteDefs.VoteResult indexed result
-    );
-
-    modifier onlyContributor(string memory _proposalId) {
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage dsProposals = LibDiamondStorageProposals
-                .diamondStorageProposals();
-        require(
-            dsProposals.isContributor[_proposalId][msg.sender],
-            "Caller is not a contributor"
-        );
-        _;
-    }
-
+    /**
+     * @notice Begins a voting session for a specific proposal and contribution.
+     * @dev Initiates a voting session based on the provided proposal ID, contribution ID, 
+     * and the type of voting session.
+     *
+     * @param _proposalId The unique ID of the proposal.
+     * @param _contributionId The ID of the contribution associated with the proposal.
+     * @param _sessionType The type of voting session, i.e., CONTRIBUTION or FINALIZATION.
+     */
     function startVotingSession(
         string memory _proposalId,
         uint256 _contributionId,
         VoteDefs.SessionType _sessionType
-    ) external onlyContributor(_proposalId) {
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-
-        VoteDefs.VotingSession storage votingSession = ds.votingSessions[
-            _proposalId
-        ][_contributionId];
-
-        require(
-            votingSession.startTime == 0,
-            "VotingFacet.StartVotingSession: voting session already started"
-        );
-
-        uint256 _startTime = block.timestamp;
-        uint256 _endTime = _startTime + 1 days;
-        uint256 _yesVotes = 0;
-        uint256 _noVotes = 0;
-        uint256 _abstainVotes = 0;
-        VoteDefs.VoteResult _result = VoteDefs.VoteResult.PENDING;
-
-        votingSession.startTime = _startTime;
-        votingSession.endTime = _endTime;
-        votingSession.yesVotes = _yesVotes;
-        votingSession.noVotes = _noVotes;
-        votingSession.abstainVotes = _abstainVotes;
-        votingSession.sessionType = _sessionType;
-        votingSession.result = _result;
-
-        emit VotingSessionStarted(
-            _proposalId,
-            _contributionId,
-            _startTime,
-            _endTime,
-            _sessionType
-        );
+    ) external {
+        LibVotingFacet.startVotingSession(_proposalId, _contributionId, _sessionType);
     }
 
+    /**
+     * @notice Allows an eligible contributor to cast their vote on a proposal.
+     * @dev Records a contributor's vote based on the given proposal ID, contribution ID, 
+     * and the type of vote (YES, NO, ABSTAIN).
+     *
+     * @param _proposalId The unique ID of the proposal.
+     * @param _contributionId The ID of the contribution associated with the proposal.
+     * @param _voteType The type of vote cast by the contributor.
+     */
     function submitVote(
         string memory _proposalId,
         uint256 _contributionId,
         VoteDefs.VoteType _voteType
-    ) external onlyContributor(_proposalId) {
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-
-        VoteDefs.VotingSession storage votingSession = ds.votingSessions[
-            _proposalId
-        ][_contributionId];
-
-        VoteDefs.Vote storage vote = ds.votes[_proposalId][_contributionId][
-            msg.sender
-        ];
-
-        require(
-            votingSession.startTime < block.timestamp &&
-                votingSession.endTime > block.timestamp,
-            "VotingFacet.SubmitVote: voting session is not active"
-        );
-        // Check if the user has already voted
-        require(
-            vote.voter == address(0),
-            "VotingFacet.SubmitVote: voter has already voted"
-        );
-
-        vote.voter = msg.sender;
-        vote.voteType = _voteType;
-
-        if (_voteType == VoteDefs.VoteType.YES) votingSession.yesVotes++;
-        else if (_voteType == VoteDefs.VoteType.NO) votingSession.noVotes++;
-        else votingSession.abstainVotes++;
-
-        // Increment the vote count
-        ds.votesCount[_proposalId][_contributionId]++;
-
-        emit VoteCast(_proposalId, _contributionId, msg.sender, _voteType);
+    ) external {
+        LibVotingFacet.submitVote(_proposalId, _contributionId, _voteType);
     }
 
+    /**
+     * @notice Concludes a voting session for a specific proposal and contribution.
+     * @dev Ends a voting session and determines the result based on votes collected.
+     *
+     * @param _proposalId The unique ID of the proposal.
+     * @param _contributionId The ID of the contribution associated with the proposal.
+     */
     function endVotingSession(
         string memory _proposalId,
         uint256 _contributionId
-    ) external onlyContributor(_proposalId) {
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-        LibDiamondStorageProposals.DiamondStorageProposals
-            storage dsProposals = LibDiamondStorageProposals
-                .diamondStorageProposals();
-        LibDiamondStorageContributions.DiamondStorageContributions
-            storage dsContributions = LibDiamondStorageContributions
-                .diamondStorageContributions();
-        LibDiamondStorageReward.DiamondStorageReward
-            storage dsReward = LibDiamondStorageReward.diamondStorageReward();
-
-        VoteDefs.VotingSession storage votingSession = ds.votingSessions[
-            _proposalId
-        ][_contributionId];
-
-        // Ensure the proposal exists
-        require(
-            dsProposals.proposals[_proposalId].proposer != address(0),
-            "VotingFacet.endVotingSession: proposal does not exist"
-        );
-
-        // Check if everyone has voted
-        uint256 totalContributors = LibProposalFacet.getContributorCount(
-            _proposalId
-        );
-
-        // Get total votes cast
-        uint256 totalVotesCast = LibVotingFacet.getVotesCount(
-            _proposalId,
-            _contributionId
-        );
-
-        // If neither condition is met, revert
-        require(
-            (block.timestamp > votingSession.endTime) ||
-                totalVotesCast == totalContributors,
-            "VotingFacet.endVotingSession: Voting session cannot be ended yet because the timer has not expired and not everyone has voted"
-        );
-
-        VoteDefs.VoteResult result = LibVotingFacet.determineVoteResult(
-            votingSession.sessionType,
-            votingSession.yesVotes,
-            totalContributors
-        );
-
-        if (
-            votingSession.sessionType == VoteDefs.SessionType.CONTRIBUTION &&
-            result == VoteDefs.VoteResult.ACCEPTED
-        ) {
-            ds.votingSessions[_proposalId][_contributionId].result = VoteDefs
-                .VoteResult
-                .ACCEPTED;
-
-            
-            ContributionDefs.Contribution storage contribution = dsContributions
-                .contributions[_proposalId][_contributionId];
-
-            dsProposals.isContributor[_proposalId][
-                contribution.contributor
-            ] = true;
-
-            dsProposals.contributorList[_proposalId].push(
-                contribution.contributor
-            );
-
-            dsReward.contributorCharacterCount[_proposalId][
-                contribution.contributor
-            ] += contribution.characterCount;
-
-            dsReward.totalCharactersForProposal[_proposalId] += contribution
-                .characterCount;
-        }
-
-        if (
-            votingSession.sessionType == VoteDefs.SessionType.FINALIZATION &&
-            result == VoteDefs.VoteResult.ACCEPTED
-        ) {
-            ds.votingSessions[_proposalId][_contributionId].result = VoteDefs
-                .VoteResult
-                .ACCEPTED;
-            ds.isFinalized[_proposalId] = true;
-        }
-
-        emit VotingSessionEnded(
-            _proposalId,
-            _contributionId,
-            votingSession.sessionType,
-            votingSession.yesVotes,
-            votingSession.noVotes,
-            votingSession.abstainVotes,
-            result
-        );
+    ) external {
+        LibVotingFacet.endVotingSession(_proposalId, _contributionId);
     }
 
+    /**
+     * @notice Checks if a given proposal has been finalized.
+     * @dev Returns the finalized status of a proposal based on its ID.
+     *
+     * @param _proposalId The unique ID of the proposal.
+     * @return bool True if the proposal is finalized, otherwise False.
+     */
     function isProposalFinalized(
         string memory _proposalId
     ) external view returns (bool) {
-        LibDiamondStorageVoting.DiamondStorageVoting
-            storage ds = LibDiamondStorageVoting.diamondStorageVoting();
-        return ds.isFinalized[_proposalId];
+        return LibVotingFacet.isProposalFinalized(_proposalId);
     }
 }
+
