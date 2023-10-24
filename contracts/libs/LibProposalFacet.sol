@@ -25,13 +25,18 @@ library LibProposalFacet {
         string memory _proposalId,
         string memory _cid
     ) internal {
+        // Check if the proposalId or cid are empty
+        require(
+            bytes(_proposalId).length > 0 && bytes(_cid).length > 0,
+            "ProposalFacet: Invalid proposalId or cid"
+        );
         // Check if the proposal already exists
         require(
             LibStorageRetrieval
                 .proposalStorage()
                 .proposals[_proposalId]
                 .proposer == address(0),
-            "Proposal already exists"
+            "ProposalFacet: Proposal already exists"
         );
 
         // Create and store the new proposal
