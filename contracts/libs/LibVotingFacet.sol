@@ -199,23 +199,29 @@ library LibVotingFacet {
         uint256 _contributionId
     ) internal onlyContributorOrOwner(_proposalId) {
         // Reference to the current voting session for the given proposal and contribution.
-        VoteDefs.VotingSession storage votingSession = LibStorageRetrieval.votingStorage().votingSessions[
-            _proposalId
-        ][_contributionId];
+        VoteDefs.VotingSession storage votingSession = LibStorageRetrieval
+            .votingStorage()
+            .votingSessions[_proposalId][_contributionId];
 
         // Ensure that the proposal for which the session is ending exists.
         require(
-            LibStorageRetrieval.proposalStorage().proposals[_proposalId].proposer != address(0),
+            LibStorageRetrieval
+                .proposalStorage()
+                .proposals[_proposalId]
+                .proposer != address(0),
             "VotingFacet.endVotingSession: proposal does not exist"
         );
 
         // Get total contributors for the proposal.
-        uint256 totalContributors = LibStorageRetrieval.proposalStorage()
+        uint256 totalContributors = LibStorageRetrieval
+            .proposalStorage()
             .contributorList[_proposalId]
             .length;
 
         // Get total votes cast for this session.
-        uint256 totalVotesCast = LibStorageRetrieval.votingStorage().votesCount[_proposalId][_contributionId];
+        uint256 totalVotesCast = LibStorageRetrieval.votingStorage().votesCount[
+            _proposalId
+        ][_contributionId];
 
         // Ensure that either the voting session time has expired or all contributors have voted.
         require(
@@ -237,26 +243,40 @@ library LibVotingFacet {
             result == VoteDefs.VoteResult.ACCEPTED
         ) {
             // Set the vote result to ACCEPTED.
-            LibStorageRetrieval.votingStorage().votingSessions[_proposalId][_contributionId].result = VoteDefs
+            LibStorageRetrieval
+            .votingStorage()
+            .votingSessions[_proposalId][_contributionId].result = VoteDefs
                 .VoteResult
                 .ACCEPTED;
 
             // Add the contributor to the list of contributors for the proposal.
-            ContributionDefs.Contribution storage contribution = LibStorageRetrieval.contributionStorage()
-                .contributions[_proposalId][_contributionId];
-            LibStorageRetrieval.proposalStorage().isContributor[_proposalId][
-                contribution.contributor
-            ] = true;
-            LibStorageRetrieval.proposalStorage().contributorList[_proposalId].push(
-                contribution.contributor
-            );
+            ContributionDefs.Contribution
+                storage contribution = LibStorageRetrieval
+                    .contributionStorage()
+                    .contributions[_proposalId][_contributionId];
+
+            // Check if the contributor is already added, if not continue to add
+            if (
+                !LibStorageRetrieval.proposalStorage().isContributor[
+                    _proposalId
+                ][contribution.contributor]
+            ) {
+                LibStorageRetrieval.proposalStorage().isContributor[
+                    _proposalId
+                ][contribution.contributor] = true;
+                LibStorageRetrieval
+                    .proposalStorage()
+                    .contributorList[_proposalId]
+                    .push(contribution.contributor);
+            }
 
             // Update the reward counters for this contributor and proposal.
-            LibStorageRetrieval.rewardStorage().contributorCharacterCount[_proposalId][
-                contribution.contributor
-            ] += contribution.characterCount;
-            LibStorageRetrieval.rewardStorage().totalCharactersForProposal[_proposalId] += contribution
-                .characterCount;
+            LibStorageRetrieval.rewardStorage().contributorCharacterCount[
+                _proposalId
+            ][contribution.contributor] += contribution.characterCount;
+            LibStorageRetrieval.rewardStorage().totalCharactersForProposal[
+                    _proposalId
+                ] += contribution.characterCount;
         }
 
         // If the vote was for finalizing the proposal and it was accepted, finalize the proposal.
@@ -264,10 +284,20 @@ library LibVotingFacet {
             votingSession.sessionType == VoteDefs.SessionType.FINALIZATION &&
             result == VoteDefs.VoteResult.ACCEPTED
         ) {
-            LibStorageRetrieval.votingStorage().votingSessions[_proposalId][_contributionId].result = VoteDefs
+            LibStorageRetrieval
+            .votingStorage()
+            .votingSessions[_proposalId][_contributionId].result = VoteDefs
                 .VoteResult
                 .ACCEPTED;
             LibStorageRetrieval.votingStorage().isFinalized[_proposalId] = true;
+        }
+
+        if (result == VoteDefs.VoteResult.REJECTED) {
+            LibStorageRetrieval
+            .votingStorage()
+            .votingSessions[_proposalId][_contributionId].result = VoteDefs
+                .VoteResult
+                .REJECTED;
         }
 
         // Emit an event to signal the end of the voting session with its outcome.
