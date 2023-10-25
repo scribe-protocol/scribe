@@ -9,6 +9,7 @@ import {
   MockECOToken__factory,
   ProposalFacet,
   VotingFacet,
+  EcoFacet,
 } from "../typechain-types";
 import { Web3Storage } from "web3.storage";
 
@@ -18,20 +19,9 @@ describe("Local Chain VotingFacet Test", function () {
   let mockEcoToken: MockECOToken;
   let proposalFacet: ProposalFacet;
   let votingFacet: VotingFacet;
-  let title: string;
-  let description: string;
-  let content: string;
-  let proposer: string;
-  let creationTimestamp: string;
-  let lastUpdatedTimestamp: string;
   let proposalId: string;
-  let client: Web3Storage;
-  let proposalCid: string;
-  let contributor: string;
-  let contributionContent: string;
-  let contributionEcoAmount: number;
-  let proposalVersion: number = 0;
   let updatedProposalCid: string;
+  let ecoFacet: EcoFacet;
 
   // Runs before all tests in this block
   before(async function () {
@@ -46,6 +36,7 @@ describe("Local Chain VotingFacet Test", function () {
     );
     proposalFacet = await ethers.getContractAt("ProposalFacet", diamondAddress);
     votingFacet = await ethers.getContractAt("VotingFacet", diamondAddress);
+    ecoFacet = await ethers.getContractAt("EcoFacet", diamondAddress);
 
     const [deployer] = await ethers.getSigners();
 
@@ -63,81 +54,15 @@ describe("Local Chain VotingFacet Test", function () {
     // transfer balance to deployer
     await mockEcoToken.transfer(await deployer.getAddress(), 100000);
 
-    let approval = await mockEcoToken.approve(diamondAddress, 10000);
+    await mockEcoToken.approve(diamondAddress, 10000);
 
-    await contributionFacet.changeEcoAddress(await mockEcoToken.getAddress());
-
-    const ecoTokenInStorage = await contributionFacet.getEcoAddress();
-
-    title = "Test Book Title";
-    description = "Test Book Description.";
-    content = "";
-    proposer = "0xTestEthereumAddress";
-    creationTimestamp = Date.now().toString();
-    lastUpdatedTimestamp = creationTimestamp; // Initially, it's the same as creationTimestamp.
-
-    // Generate a proposalId using keccak256
-    proposalId = keccak256(toUtf8Bytes(title + proposer + creationTimestamp));
-
-    // Upload to web3.storage and get the CID
-    client = new Web3Storage({
-      token: process.env.WEB3_STORAGE_API as string,
-    });
-    const proposalFile = [
-      new File(
-        [
-          JSON.stringify({
-            proposalId,
-            title,
-            description,
-            content,
-            proposer,
-            creationTimestamp,
-            lastUpdatedTimestamp,
-          }),
-        ],
-        `proposal_${proposalId}_v${proposalVersion}.json`,
-        { type: "application/json" }
-      ),
-    ];
-    proposalCid = await client.put(proposalFile, {
-      name: `proposal_${proposalId}_v${proposalVersion}`,
-    });
-
-    await proposalFacet.createProposal(proposalId, proposalCid);
-
-    contributor = "0xTestEthereumAddress";
-    contributionContent = "Test Contribution Content";
-    contributionEcoAmount = 1;
-
-    const contributionFiles = [
-      new File(
-        [
-          JSON.stringify({
-            proposalId,
-            contributor,
-            contributionContent,
-            contributionEcoAmount,
-            creationTimestamp,
-          }),
-        ],
-        `contributions_${proposalId}.json`,
-        { type: "application/json" }
-      ),
-    ];
-    const contributionCid = await client.put(contributionFiles, {
-      name: `contributions_${proposalId}`,
-    });
-
-    await contributionFacet.createContribution(
-      proposalId,
-      contributionCid,
-      contributionEcoAmount
-    );
-
+    await ecoFacet.changeEcoAddress(await mockEcoToken.getAddress());
   });
 
   it("should start a voting session", async () => {
+    proposalId = keccak256(toUtf8Bytes("test"));
+    await proposalFacet.createProposal(proposalId, "testCid");
+    await contributionFacet.createContribution(proposalId, "testCid", 1);
     await votingFacet.startVotingSession(proposalId, 0, 0);
   });
 
@@ -149,51 +74,106 @@ describe("Local Chain VotingFacet Test", function () {
     await votingFacet.endVotingSession(proposalId, 0);
   });
 
-  it("should update the web3.storage file with approved contribution content", async () => {
-    const proposalResponse = await client.get(proposalCid);
-
-    // Get the files from the response
-    const files = await proposalResponse.files();
-
-    // Assuming there's only one file (which is the case for a single JSON file)
-    const file = files[0];
-
-    // Read the content of the file
-    const fileContent = await file.text();
-
-    // Parse the content as JSON
-    let proposalData;
-    try {
-      proposalData = JSON.parse(fileContent);
-    } catch (error) {
-      console.error("Failed to parse JSON:", fileContent);
-      throw error;
-    }
-
-    // Update the content of the proposal
-    proposalData.content += contributionContent;
-
-    proposalVersion++;
-
-    // Upload the updated proposal to web3.storage
-    const updatedProposalFile = [
-      new File(
-        [JSON.stringify(proposalData)],
-        `proposal_${proposalId}_v${proposalVersion}.json`,
-        { type: "application/json" }
-      ),
-    ];
-
-    updatedProposalCid = await client.put(updatedProposalFile, {
-      name: `proposal_${proposalId}_v${proposalVersion}`,
-    });
-  });
-
   it("should update the proposal in the contract with the new CID", async () => {
+    updatedProposalCid = "updatedCid";
+
     await proposalFacet.updateCid(proposalId, updatedProposalCid);
 
     let updatedProposal = await proposalFacet.getProposal(proposalId);
 
     assert.equal(updatedProposal.cid, updatedProposalCid);
+  });
+
+  it("should properly finalize a proposal", async () => {
+    await contributionFacet.createContribution(proposalId, "testCid", 1);
+
+    const contribution2 = await contributionFacet.getContribution(
+      proposalId,
+      1
+    );
+
+    await votingFacet.startVotingSession(
+      proposalId,
+      contribution2.contributionId,
+      1
+    );
+    await votingFacet.submitVote(proposalId, contribution2.contributionId, 0);
+    await votingFacet.endVotingSession(
+      proposalId,
+      contribution2.contributionId
+    );
+
+    assert.equal(await votingFacet.isProposalFinalized(proposalId), true);
+  });
+
+  it("should not start a voting session for a non-existing contribution", async () => {
+    try {
+      await votingFacet.startVotingSession(proposalId, 1000, 0);
+    } catch (error) {
+      assert.include(error.message, "VotingFacet: contribution does not exist");
+    }
+  });
+
+  it("should not submit a vote for non-existing contribution", async () => {
+    try {
+      await votingFacet.submitVote(proposalId, 1000, 0);
+    } catch (error) {
+      assert.include(error.message, "VotingFacet: contribution does not exist");
+    }
+  });
+
+  it("should not end a voting session for a non-existing contribution", async () => {
+    try {
+      await votingFacet.endVotingSession(proposalId, 1000);
+    } catch (error) {
+      assert.include(error.message, "VotingFacet: contribution does not exist");
+    }
+  });
+
+  it("should not a end non-active voting session", async () => {
+    await contributionFacet.createContribution(proposalId, "testCid", 1);
+
+    const contribution2 = await contributionFacet.getContribution(
+      proposalId,
+      2
+    );
+
+    try {
+      await votingFacet.endVotingSession(
+        proposalId,
+        contribution2.contributionId
+      );
+    } catch (error) {
+      assert.include(
+        error.message,
+        "VotingFacet.endVotingSession: voting session is not active"
+      );
+    }
+  });
+
+  it("should not end a voting session prematurely", async () => {
+    await contributionFacet.createContribution(proposalId, "testCid", 1);
+
+    const contribution3 = await contributionFacet.getContribution(
+      proposalId,
+      3
+    );
+
+    await votingFacet.startVotingSession(
+      proposalId,
+      contribution3.contributionId,
+      0
+    );
+    try {
+      await votingFacet.endVotingSession(
+        proposalId,
+        contribution3.contributionId
+      );
+    } catch (error) {
+      assert.include(
+        error.message,
+        "VotingFacet.endVotingSession: Voting session cannot be ended yet because the timer has not expired and not everyone has voted"
+      );
+    }
   });
 });

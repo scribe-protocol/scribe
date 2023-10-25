@@ -94,11 +94,11 @@ library LibVotingFacet {
         uint256 _contributionId,
         VoteDefs.SessionType _sessionType
     ) internal onlyContributorOrOwner(_proposalId) {
+        _checkContributionExists(_proposalId, _contributionId);
         // Reference to the current voting session.
         VoteDefs.VotingSession storage votingSession = LibStorageRetrieval
             .votingStorage()
             .votingSessions[_proposalId][_contributionId];
-
         // Ensure that the voting session hasn't already started.
         require(
             votingSession.startTime == 0,
@@ -145,6 +145,7 @@ library LibVotingFacet {
         uint256 _contributionId,
         VoteDefs.VoteType _voteType
     ) internal onlyContributorOrOwner(_proposalId) {
+        _checkContributionExists(_proposalId, _contributionId);
         // Reference to the current voting session for the given proposal and contribution.
         VoteDefs.VotingSession storage votingSession = LibStorageRetrieval
             .votingStorage()
@@ -198,6 +199,7 @@ library LibVotingFacet {
         string memory _proposalId,
         uint256 _contributionId
     ) internal onlyContributorOrOwner(_proposalId) {
+        _checkContributionExists(_proposalId, _contributionId);
         // Reference to the current voting session for the given proposal and contribution.
         VoteDefs.VotingSession storage votingSession = LibStorageRetrieval
             .votingStorage()
@@ -210,6 +212,13 @@ library LibVotingFacet {
                 .proposals[_proposalId]
                 .proposer != address(0),
             "VotingFacet.endVotingSession: proposal does not exist"
+        );
+
+        // Ensure the voting session is currently active.
+        require(
+            votingSession.startTime < block.timestamp &&
+                votingSession.endTime > block.timestamp,
+            "VotingFacet.endVotingSession: voting session is not active"
         );
 
         // Get total contributors for the proposal.
@@ -371,5 +380,18 @@ library LibVotingFacet {
             (yesVotes * 2 > totalContributors)
                 ? VoteDefs.VoteResult.ACCEPTED
                 : VoteDefs.VoteResult.REJECTED;
+    }
+
+    function _checkContributionExists(
+        string memory proposalId,
+        uint256 contributionId
+    ) private view {
+        require(
+            LibStorageRetrieval
+            .contributionStorage()
+            .contributions[proposalId][contributionId].contributor !=
+                address(0),
+            "VotingFacet: contribution does not exist"
+        );
     }
 }
