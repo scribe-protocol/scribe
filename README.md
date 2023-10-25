@@ -7,9 +7,10 @@ Scribe is a decentralized application built on Ethereum that incentivizes collab
 ## 🌟 Features
 
 - 📜 **Decentralized Proposals**: Anyone can propose content and gather contributions.
-- 💰 **Contributions**: Contributors donate ECO and earn rewards based on the value they bring.
-- ✅ **Voting**: Decentralized voting mechanism to allow community decisions.
-- 🔍 **Transparent & Open**: All transactions and data are transparently stored on the Ethereum blockchain.
+- 💰 **Contributions**: Contributors donate ECO and earn a percentage of the contribution pool based on the value they bring to the project.
+- ✅ **Voting**: Decentralized voting mechanism to allow community decisions on contribution inclusion.
+- 🎨 **NFT Creation**: Approved contributors can claim NFTs on project completion, providing a digital certificate of authenticity and ownership.
+- 🔍 **Transparent & Open**: All transactions and data are transparently stored on the Ethereum blockchain and IPFS.
 
 ## 🚀 Getting Started
 
