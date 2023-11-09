@@ -13,26 +13,6 @@ Scribe is a decentralized application built on Ethereum that incentivizes collab
 - 🔍 **Transparent & Open**: All transactions and data are transparently stored on the Ethereum blockchain and IPFS.
 
 ## 🚀 Getting Started
-
-### Prerequisites
-
-- Ethereum Wallet (e.g., MetaMask)
-- Some ETH for transaction fees
-- ECO for contributing
-- [Node.js](https://nodejs.org/) & [npm](https://www.npmjs.com/) (for developers)
-
-### Installation & Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone [repository-link]
-   cd path-to-scribe
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
    
 ## 🔗 Smart Contracts
 
