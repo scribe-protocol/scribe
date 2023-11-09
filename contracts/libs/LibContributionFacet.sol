@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {ContributionDefs} from "../storage/defs/ContributionDefs.sol";
+import {ProposalDefs} from "../storage/defs/ProposalDefs.sol";
 import {LibCounter} from "../libs/LibCounter.sol";
 import {LibEco} from "../libs/LibEco.sol";
 import {LibDiamond} from "../diamond/libs/LibDiamond.sol";
@@ -39,6 +40,15 @@ library LibContributionFacet {
                 _ecoAmount
             ),
             "LibContributionFacet.createContribution: Token transfer failed"
+        );
+
+        // Require proposal status to be OPEN
+        require(
+            LibStorageRetrieval
+                .proposalStorage()
+                .proposals[_proposalId]
+                .status == ProposalDefs.ProposalStatus.OPEN,
+            "LibContributionFacet.createContribution: Proposal is not OPEN"
         );
 
         // Generate a unique ID for the contribution using a counter

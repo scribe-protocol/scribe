@@ -42,7 +42,12 @@ library LibProposalFacet {
         // Create and store the new proposal
         LibStorageRetrieval.proposalStorage().proposals[
             _proposalId
-        ] = ProposalDefs.Proposal(_proposalId, msg.sender, _cid);
+        ] = ProposalDefs.Proposal(
+            _proposalId,
+            msg.sender,
+            ProposalDefs.ProposalStatus.OPEN,
+            _cid
+        );
 
         // Mark the sender as a contributor to this proposal
         LibStorageRetrieval.proposalStorage().isContributor[_proposalId][

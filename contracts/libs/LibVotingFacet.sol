@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 
 import {VoteDefs} from "../storage/defs/VoteDefs.sol";
 import {ContributionDefs} from "../storage/defs/ContributionDefs.sol";
+import {ProposalDefs} from "../storage/defs/ProposalDefs.sol";
 import {LibDiamond} from "../diamond/libs/LibDiamond.sol";
 import {LibStorageRetrieval} from "./LibStorageRetrieval.sol";
 
@@ -299,6 +300,10 @@ library LibVotingFacet {
                 .VoteResult
                 .ACCEPTED;
             LibStorageRetrieval.votingStorage().isFinalized[_proposalId] = true;
+            LibStorageRetrieval
+                .proposalStorage()
+                .proposals[_proposalId]
+                .status = ProposalDefs.ProposalStatus.FINALIZED;
         }
 
         if (result == VoteDefs.VoteResult.REJECTED) {
